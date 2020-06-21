@@ -1,184 +1,196 @@
-import random
+from card import make_deck
 
-SUITS = ["clubs","diamonds","hearts","spades"]
 
-class Card:
-    def __init__(self, num, suit):
-        if num == 1:
-            self.name = "ace"
-        else:
-            self.name = str(num)
+class Move:
 
-        self.num = num
-        self.suit = suit
+    def __init__(self, src_pile, dest_pile):
+        self.src_pile = src_pile
+        self.dest_pile = dest_pile
 
-        if suit == "clubs" or suit == "spades":
-            self.color = "black"
-        else:
-            self.color = "red"
-
-    def __str__(self):
-        return "{} {}".format(self.num, self.suit)
-
-def make_deck():
-    cards = []
-    for suit in SUITS:
-        for num in range(1, 14):
-            cards.append(Card(num, suit))
-    random.shuffle(cards)
-    return cards
-
-def print_cards(cards):
-    for card in cards:
-        print(card)
 
 class Game:
+
+    PLAYER_ONE = 1
+    PLAYER_TWO = 2
+
+
     def __init__(self):
-        self.asc_piles = []
-        self.desc_piles = []
+        left_piles = []
+        right_piles = []
+        outer_piles = []
+        for player in [Game.PLAYER_ONE,Game.PLAYER_TWO]:
+            left_pile,starter_cards,right_pile = self._init_player(player)
+            left_piles.append(left_pile)
+            right_piles.append(right_pile)
+            for card in starter_cards:
+                outer_piles.append([card])
 
-        for _ in range(8):
-            self.asc_piles.append([])
-            self.desc_piles.append([])
+        self._left_piles = left_piles
+        self._middle_piles = [[],[]]
+        self._right_piles = right_piles
+        self._inner_piles = [[] for _ in range(8)]  # 8 empty lists
+        self._outer_piles = outer_piles
 
-        deck1 = make_deck()
-        deck2 = make_deck()
-
-        self.player1_left_pile = deck1[:13]
-
-        self.desc_piles[0].append(deck1[13])
-        self.desc_piles[1].append(deck1[14])
-        self.desc_piles[2].append(deck1[15])
-        self.desc_piles[3].append(deck1[16])
-
-        self.player1_middle_pile = []
-        self.player1_right_pile = deck1[17:]
-
-        self.player2_left_pile = deck2[:13]
-
-        self.desc_piles[4].append(deck2[13])
-        self.desc_piles[5].append(deck2[14])
-        self.desc_piles[6].append(deck2[15])
-        self.desc_piles[7].append(deck2[16])
-
-        self.player2_middle_pile = []
-        self.player2_right_pile = deck2[17:]
 
     def play(self):
-        current_player = 1
-
+        current_player = self._get_starting_player()
         while True:
-            self.make_moves(current_player)
+            self._take_turn(current_player)
 
-            if self.player_is_out(current_player):
-                print("SUCCESS")
-                return
-            elif self.is_stuck(1) and self.is_stuck(2):
-                print("STUCK")
-                return
+            if self._is_finished(current_player):
+                print("Success! Player {} wins!".format(current_player))
+                break
+            elif (self._cannot_play(Game.PLAYER_ONE) and 
+                    self._cannot_play(Game.PLAYER_TWO)):
+                print("Failure. No moves are possible.")
+                break
             else:
-                if current_player == 1:
-                    current_player = 2
-                else:
-                    current_player = 1
+                current_player = self._get_next_player(current_player)
 
-    def player_is_out(self, player):
-        if player == 1:
-            if (len(self.player1_left_pile) == 0 and
-               len(self.player1_middle_pile) == 0 and
-               len(self.player1_right_pile) == 0):
-                    return True   
-        else:
-            if (len(self.player2_left_pile) == 0 and
-               len(self.player2_middle_pile) == 0 and
-               len(self.player2_right_pile) == 0):
-                    return True   
-        return False
 
-    def is_stuck(self, player):
-        if len(self.get_possible_moves(player)) == 0:
-            return True
-        else:
-            return False
+    def _init_player(self, player):
+        deck = make_deck()
 
-    def make_moves(self, player):
-        possible_moves = self.get_possible_moves(player)
+        left_pile = []
+        for _ in range(13):
+            left_pile.append(deck.pop())
+
+        starter_cards = []
+        for _ in range(4):
+            starter_cards.append(deck.pop())
+
+        return left_pile,starter_cards,deck
+
+    def _get_starting_player(self):
+        # TODO Add appropriate logic
+        return Game.PLAYER_ONE
+
+    def _take_turn(self, current_player):
+        possible_moves = self._get_possible_moves(current_player)
 
         while len(possible_moves) > 0:
-            src,dest = self.select_best_move(possible_moves)
+            move = self._select_best_move(possible_moves)
 
-            card = src.pop()
-            dest.append(card)
+            # Move the card between piles.
+            card = move.src_pile.pop()
+            move.dest_pile.append(card)
 
-            possible_moves = self.get_possible_moves(player)
+            possible_moves = self._get_possible_moves(current_player)
 
-    def select_best_move(self, possible_moves):
-        for move in possible_moves:
-            src,dest = move
+    def _is_finished(self, current_player):
+        return (len(self._get_near_left_pile(current_player)) == 0 and
+                len(self._get_near_middle_pile(current_player)) == 0 and
+                len(self._get_near_right_pile(current_player)) == 0)
 
-            if len(src) == 1:
-                return move
-        return possible_moves[0]
+    def _cannot_play(self, current_player):
+        return len(self.get_possible_moves(current_player)) == 0
 
-    def get_possible_moves(self, player):
+    def _get_next_player(self, current_player):
+        if current_player == Game.PLAYER_ONE:
+            return Game.PLAYER_TWO
+        else:
+            return Game.PLAYER_ONE
+
+    def _get_possible_moves(self, current_player):
         possible_moves = []
 
-        srcs = self.desc_piles
-        other_player_piles = []
+        src_piles = [self._get_near_left_pile(current_player),
+                     self._get_near_middle_pile(current_player),
+                     self._get_near_right_pile(current_player),
+                     *self._outer_piles]
 
-        if player == 1:
-            srcs.append(self.player1_left_pile)
-            srcs.append(self.player1_middle_pile)
-            srcs.append(self.player1_right_pile)
+        for src_pile in src_piles:
+            # Cannot move from an empty pile.
+            if len(src_pile) == 0:
+                continue
 
-            other_player_piles.append(self.player2_left_pile)
-            other_player_piles.append(self.player2_middle_pile)
-        else:
-            srcs.append(self.player2_left_pile)
-            srcs.append(self.player2_middle_pile)
-            srcs.append(self.player2_right_pile)
+            src_card = src_pile[-1]
 
-            other_player_piles.append(self.player1_left_pile)
-            other_player_piles.append(self.player1_middle_pile)
-
-        for src in srcs:
-            if len(src) == 0: continue
-
-            src_card = src[len(src)-1]
-
-            for dest in self.asc_piles:
-                if len(dest) == 0:
+            # Look for moves to the inner piles.
+            for dest_pile in self._inner_piles:
+                # Only aces can start the inner piles.
+                if len(dest_pile) == 0:
                     if src_card.name == "ace":
-                        move = src,dest
-                        possible_moves.append(move)
+                        possible_moves.append(Move(src_pile, dest_pile))
                     continue
 
-                dest_card = dest[len(dest)-1]
+                dest_card = dest_pile[-1]
+
+                # Cards can only be placed if they are the same suit and
+                # are the next highest value.
                 if (src_card.suit == dest_card.suit and
                         src_card.num == dest_card.num + 1):
-                    move = src,dest
-                    possible_moves.append(move)
+                    possible_moves.append(Move(src_pile, dest_pile))
 
-            for dest in self.desc_piles:
-                if len(dest) == 0:
-                    move = src,dest
-                    possible_moves.append(move)
-                else:
-                    dest_card = dest[len(dest)-1]
-                    if (src_card.num == dest_card.num - 1 and 
-                            src_card.color != dest_card.color):
-                        move = src,dest
-                        possible_moves.append(move)
-
-            for dest in other_player_piles:
-                if len(dest) == 0:
+            # Look for moves to the outer piles
+            for dest_pile in self._outer_piles:
+                # Any card may move to empty piles
+                if len(dest_pile) == 0:
+                    possible_moves.append(Move(src_pile, dest_pile))
                     continue
 
-                dest_card = dest[len(dest)-1]
+                dest_card = dest_pile[-1]
+
+                # Otherwise the card must be the opposite color and the next
+                # lowest value.
+                if (src_card.num == dest_card.num - 1 and 
+                        src_card.color != dest_card.color):
+                    possible_moves.append(Move(src_pile, dest_pile))
+
+            # Look for moves onto the other player's piles.
+            for dest_pile in [self._get_far_middle_pile(current_player),
+                              self._get_far_right_pile(current_player)]:
+                # Cards cannot be moved onto empty piles.
+                if len(dest_pile) == 0:
+                    continue
+
+                dest_card = dest_pile[-1]
+
+                # The only valid move is for a card that is the next highest or
+                # lowest and of the same suit.
                 if (src_card.suit == dest_card.suit and
                         (src_card.num == dest_card.num + 1 or
                          src_card.num == dest_card.num - 1)):
-                    move = src,dest
-                    possible_moves.append(move)
+                    possible_moves.append(Move(src_pile, dest_pile))
+
         return possible_moves
+
+    def _select_best_move(self, possible_moves):
+        for move in possible_moves:
+            # Check to see if moving the card will create a gap.
+            if len(move.src_pile) == 1:
+                return move
+
+        # If nothing else works, use the first available move.
+        return possible_moves[0]
+
+    def _get_near_left_pile(self, current_player):
+        if current_player == Game.PLAYER_ONE:
+            return self._left_piles[0]
+        else:
+            return self._left_piles[1]
+
+    def _get_near_middle_pile(self, current_player):
+        if current_player == Game.PLAYER_ONE:
+            return self._middle_piles[0]
+        else:
+            return self._middle_piles[1]
+
+    def _get_near_right_pile(self, current_player):
+        if current_player == Game.PLAYER_ONE:
+            return self._right_piles[0]
+        else:
+            return self._right_piles[1]
+
+    def _get_far_middle_pile(self, current_player):
+        if current_player == Game.PLAYER_ONE:
+            return self._middle_piles[1]
+        else:
+            return self._middle_piles[0]
+
+    def _get_far_right_pile(self, current_player):
+        if current_player == Game.PLAYER_ONE:
+            return self._right_piles[1]
+        else:
+            return self._right_piles[0]
 
