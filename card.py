@@ -5,14 +5,22 @@ class Card:
 
     SUITS = ["clubs","diamonds","hearts","spades"]
 
+
     def __init__(self, num, suit):
         self.num = num
         self.suit = suit
         self.name = self._get_name(num)
         self.color = self._get_suit_color(suit)
 
+    def __eq__(self, other):
+        if type(self) != type(other):
+            raise ValueError()
+
+        return self.num == other.num and self.suit == other.suit
+
     def __str__(self):
         return "{} of {}".format(self.name, self.suit)
+
 
     def _get_name(self, num):
         if num == 1:
