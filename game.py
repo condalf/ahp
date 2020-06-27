@@ -78,10 +78,8 @@ class Game:
         return Game.PLAYER_ONE
 
     def _take_turn(self, current_player):
-        possible_moves = self._get_possible_moves(current_player)
-
-        while len(possible_moves) > 0:
-            move = self._select_best_move(possible_moves)
+        move = self._select_best_move(current_player)
+        while move is not None:
 
             print(move)
 
@@ -89,9 +87,7 @@ class Game:
             card = move.src_pile.take()
             move.dest_pile.put(card)
 
-            self._history.append(move)
-
-            possible_moves = self._get_possible_moves(current_player)
+            move = self._select_best_move(current_player)
 
     def _is_finished(self, current_player):
         return (len(self._get_near_left_pile(current_player)) == 0 and
@@ -99,7 +95,8 @@ class Game:
                 len(self._get_near_right_pile(current_player)) == 0)
 
     def _cannot_play(self, current_player):
-        return len(self._get_possible_moves(current_player)) == 0
+        # TODO Add appropriate logic.
+        return False
 
     def _get_next_player(self, current_player):
         if current_player == Game.PLAYER_ONE:
@@ -107,51 +104,38 @@ class Game:
         else:
             return Game.PLAYER_ONE
 
-    def _get_possible_moves(self, current_player):
-        possible_moves = []
-
-        src_piles = [self._get_near_left_pile(current_player),
+    def _select_best_move(self, current_player):
+        # Check for aces.
+        for pile in [self._get_near_left_pile(current_player),
                      self._get_near_middle_pile(current_player),
                      self._get_near_right_pile(current_player),
-                     *self._outer_piles]
+                     *self._outer_piles]:
+            if pile.is_empty(): continue
 
-        for src_pile in src_piles:
-            # Cannot move from an empty pile.
-            if src_pile.is_empty():
-                continue
+            if pile.top_card.name == "ace":
+                for inner_pile in self._inner_piles:
+                    if inner_pile.is_empty():
+                        return Move(pile, inner_pile)
 
-            # Look for moves to the inner piles.
-            for dest_pile in self._inner_piles:
-                if dest_pile.accepts(src_pile.top_card):
-                    possible_moves.append(Move(src_pile, dest_pile))
+        # Check for twos.
+        for pile in [self._get_near_left_pile(current_player),
+                     self._get_near_middle_pile(current_player),
+                     self._get_near_right_pile(current_player),
+                     *self._outer_piles]:
+            if pile.is_empty(): continue
 
-            # Look for moves to the outer piles
-            for dest_pile in self._outer_piles:
-                if dest_pile.accepts(src_pile.top_card):
-                    possible_moves.append(Move(src_pile, dest_pile))
+            if pile.top_card.num == 2:
+                for inner_pile in self._inner_piles:
+                    if inner_pile.accepts(pile.top_card):
+                        return Move(pile, inner_pile)
 
-            # Look for moves onto the other player's piles.
-            for dest_pile in [self._get_far_middle_pile(current_player),
-                              self._get_far_left_pile(current_player)]:
-                if dest_pile.accepts(src_pile.top_card):
-                    possible_moves.append(Move(src_pile, dest_pile))
-
-        return possible_moves
-
-    def _select_best_move(self, possible_moves):
-        # TODO Ban identical/reversed moves
-        for move in possible_moves:
-            # Check that this move is not the same as the last move
-            if len(self._history) > 0 and move in self._history:
-                continue
-
-            # Check to see if moving the card will create a gap.
-            if len(move.src_pile) == 1:
-                return move
-
-        # If nothing else works, use the first available move.
-        # return possible_moves[0]
-        return random.choice(possible_moves)
+        # Can I make a gap by manipulating the outer piles?
+        # Can I increase outer pile sizes?
+        # Can I make a gap by moving onto the inner piles?
+        # What can I do with my personal cards (from either L, M or R)?
+            # Put on outer piles? (not a gap)
+            # Put in middle?
+            # Put on opponent?
 
     def _get_near_left_pile(self, current_player):
         if current_player == Game.PLAYER_ONE:
